@@ -1,0 +1,344 @@
+package chaincode
+
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/hyperledger/fabric-contract-api-go/v2/contractapi"
+)
+
+// SmartContract provides functions for managing an Asset
+type SmartContract struct {
+	contractapi.Contract
+}
+
+// BaseCredential contains the common fields for all credentials
+type BaseCredential struct {
+	ApprovedBy        	string `json:"ApprovedBy"`        	// Institution or admin that approved the credentials
+	CredentialID		string `json:"CredentialID"`		// Credential unique identifier
+	CredentialType		string `json:"CredentialType"`      // Type of credential: academic, professional
+	FirstName         	string `json:"FirstName"`
+	LastName          	string `json:"LastName"`
+	Skills            	string `json:"Skills"`            	// List of skills associated with the experience/education (could be a comma-separated string or more complex structure)
+	TalentID          	string `json:"TalentID"`         	// Talent identifier
+	VerificationStatus 	string `json:"VerificationStatus"` 	// Status of the credential verification (e.g., "Pending", "Verified")
+}
+
+// AcademicCredential is for academic credentials (e.g., degree, diploma)
+type AcademicCredential struct {
+	BaseCredential
+	Education       	string `json:"Education"`      // e.g., "M.Eng. in Computer Science"
+	Institution     	string `json:"Institution"`    // Institution granting the degree
+}
+
+// ProfessionalCredential is for professional credentials (e.g., work experience)
+type ProfessionalCredential struct {
+	BaseCredential
+	Company         string `json:"Company"`        // Company where the work experience was gained
+	WorkExperience  string `json:"WorkExperience"`
+}
+
+// InitLedger initializes the ledger with some sample talent credentials
+func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {
+	credentials := []interface{}{
+		AcademicCredential{
+			BaseCredential: BaseCredential{
+				CredentialID:		"credential1",
+				TalentID:           "alicesmith01",
+				FirstName:          "Alice",
+				LastName:           "Smith",
+				Skills:             "Python, Data Analysis",
+				VerificationStatus: "Verified",
+				ApprovedBy:         "Concordia University",
+				CredentialType:		"academic",
+			},
+			Education:  "B.Sc. in Computer Science",
+			Institution: "Concordia University",
+		},
+		ProfessionalCredential{
+			BaseCredential: BaseCredential{
+				CredentialID:		"credential2",
+				TalentID:           "bobjohnson01",
+				FirstName:          "Bob",
+				LastName:           "Johnson",
+				Skills:             "Project Management, Leadership",
+				VerificationStatus: "Verified",
+				ApprovedBy:         "Company ABCDEF",
+				CredentialType:		"professional",
+			},
+			WorkExperience: "5 years as Project Manager",
+			Company:        "Company ABCDEF",
+		},
+		AcademicCredential{
+			BaseCredential: BaseCredential{
+				CredentialID:		"credential3",
+				TalentID:           "charliebrown02",
+				FirstName:          "Charlie",
+				LastName:           "Brown",
+				Skills:             "Java, Software Engineering",
+				VerificationStatus: "Pending",
+				ApprovedBy:         "",
+				CredentialType:		"academic",
+			},
+			Education:   "M.Sc. in Software Engineering",
+			Institution: "Polytechnique Montréal",
+		},
+		ProfessionalCredential{
+			BaseCredential: BaseCredential{
+				CredentialID:		"credential4",
+				TalentID:           "charliebrown02",
+				FirstName:          "Charlie",
+				LastName:           "Brown",
+				Skills:             "C, C++, Python, Shell",
+				VerificationStatus: "Pending",
+				ApprovedBy:         "",
+				CredentialType:		"professional",
+			},
+			WorkExperience: "4-Month Internship as a Software Developer",
+			Company:        "Company XYZ",
+		},
+	}
+
+	for _, credential := range credentials {
+		credentialJSON, err := json.Marshal(credential)
+		if err != nil {
+			return fmt.Errorf("failed to marshal credential: %v", err)
+		}
+
+		// Store each credential in the ledger, using credentialID as the key
+		credentialID := ""
+		switch v := credential.(type) {
+		case AcademicCredential:
+			credentialID = v.CredentialID
+		case ProfessionalCredential:
+			credentialID = v.CredentialID
+		}
+
+		err = ctx.GetStub().PutState(credentialID, credentialJSON)
+		if err != nil {
+			return fmt.Errorf("failed to put talent credential to world state. %v", err)
+		}
+	}
+
+	return nil
+}
+
+// Issues a new academic credential
+func (s *SmartContract) CreateAcademicCredential(ctx contractapi.TransactionContextInterface, credentialID string, talentID string, firstName string, lastName string, skills string, education string, institution string) error {
+	exists, err := s.CredentialExists(ctx, credentialID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("the credential %s already exists", credentialID)
+	}
+
+	academicCredential := AcademicCredential{
+		BaseCredential: BaseCredential{
+			CredentialID:		credentialID,
+			TalentID:           talentID,
+			FirstName:          firstName,
+			LastName:           lastName,
+			Skills:             skills,
+			VerificationStatus: "Pending",
+			CredentialType:		"academic",
+		},
+		Education: education,
+		Institution: institution,
+	}
+
+	academicCredentialJSON, err := json.Marshal(academicCredential)
+	if err != nil {
+		return fmt.Errorf("failed to marshal academic credential: %v", err)
+	}
+
+	return ctx.GetStub().PutState(credentialID, academicCredentialJSON)
+}
+
+// Issues a new professional credential
+func (s *SmartContract) CreateProfessionalCredential(ctx contractapi.TransactionContextInterface, credentialID string, talentID string, firstName string, lastName string, skills string, workExperience string, company string) error {
+	exists, err := s.CredentialExists(ctx, credentialID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("the credential %s already exists", credentialID)
+	}
+
+	professionalCredential := ProfessionalCredential{
+		BaseCredential: BaseCredential{
+			CredentialID:		credentialID,
+			TalentID:           talentID,
+			FirstName:          firstName,
+			LastName:           lastName,
+			Skills:             skills,
+			VerificationStatus: "Pending",
+			CredentialType:		"professional",
+		},
+		WorkExperience: workExperience,
+		Company:        company,
+	}
+
+	professionalCredentialJSON, err := json.Marshal(professionalCredential)
+	if err != nil {
+		return fmt.Errorf("failed to marshal professional credential: %v", err)
+	}
+
+	return ctx.GetStub().PutState(credentialID, professionalCredentialJSON)
+}
+
+// CredentialExists returns true when credential with given ID exists in world state
+func (s *SmartContract) CredentialExists(ctx contractapi.TransactionContextInterface, credentialID string) (bool, error) {
+	credentialJSON, err := ctx.GetStub().GetState(credentialID)
+	if err != nil {
+		return false, fmt.Errorf("failed to read from world state: %v", err)
+	}
+
+	return credentialJSON != nil, nil
+}
+
+// Retrieves a talent credential by its ID (either academic or professional)
+// TODO: change to implement the academic/professional attributes
+func (s *SmartContract) GetTalentCredential(ctx contractapi.TransactionContextInterface, credentialID string) (*BaseCredential, error) {
+	talentCredentialJSON, err := ctx.GetStub().GetState(credentialID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read from world state: %v", err)
+	}
+	if talentCredentialJSON == nil {
+		return nil, fmt.Errorf("the talent credential %s does not exist", credentialID)
+	}
+
+	var baseCredential BaseCredential
+	err = json.Unmarshal(talentCredentialJSON, &baseCredential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal talent credential: %v", err)
+	}
+
+	return &baseCredential, nil
+}
+
+// Updates the verification status of a talent credential
+// TODO: change to implement the academic/professional attributes
+func (s *SmartContract) UpdateVerificationStatus(ctx contractapi.TransactionContextInterface, credentialID string, status string, approvedBy string) error {
+	talentCredential, err := s.GetTalentCredential(ctx, credentialID)
+	if err != nil {
+		return err
+	}
+
+	// Update the verification status and approvedBy fields
+	talentCredential.VerificationStatus = status
+	talentCredential.ApprovedBy = approvedBy
+
+	talentCredentialJSON, err := json.Marshal(talentCredential)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated talent credential: %v", err)
+	}
+
+	return ctx.GetStub().PutState(credentialID, talentCredentialJSON)
+}
+
+// Deletes a talent credential by its ID
+func (s *SmartContract) DeleteTalentCredential(ctx contractapi.TransactionContextInterface, credentialID string) error {
+	talentCredential, err := s.GetTalentCredential(ctx, credentialID)
+	if err != nil {
+		return err
+	}
+
+	if talentCredential == nil {
+		return fmt.Errorf("the talent credential %s does not exist", credentialID)
+	}
+
+	// Delete the credential from the ledger
+	return ctx.GetStub().DelState(credentialID)
+}
+
+// Updates the skills of a talent credential
+// TODO: change to implement the academic/professional attributes
+func (s *SmartContract) UpdateSkills(ctx contractapi.TransactionContextInterface, credentialID string, newSkills string) error {
+	talentCredential, err := s.GetTalentCredential(ctx, credentialID)
+	if err != nil {
+		return err
+	}
+
+	talentCredential.Skills = newSkills
+
+	talentCredentialJSON, err := json.Marshal(talentCredential)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated talent credential: %v", err)
+	}
+
+	return ctx.GetStub().PutState(credentialID, talentCredentialJSON)
+}
+
+// Updates the first and last name of a talent credential (if the talent made an error)
+// TODO: change to implement the academic/professional attributes
+func (s *SmartContract) UpdateName(ctx contractapi.TransactionContextInterface, credentialID string, newFirstName string, newLastName string) error {
+	talentCredential, err := s.GetTalentCredential(ctx, credentialID)
+	if err != nil {
+		return err
+	}
+
+	// Update the name fields
+	talentCredential.FirstName = newFirstName
+	talentCredential.LastName = newLastName
+
+	talentCredentialJSON, err := json.Marshal(talentCredential)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated talent credential: %v", err)
+	}
+
+	return ctx.GetStub().PutState(credentialID, talentCredentialJSON)
+}
+
+// GetAllCredentials retrieves all credentials (both academic and professional) from the ledger
+func (s *SmartContract) GetAllCredentials(ctx contractapi.TransactionContextInterface) ([]interface{}, error) {
+	// Perform a range query with an empty string for startKey and endKey for an open-ended query
+	resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
+	if err != nil {
+		return nil, err
+	}
+	defer resultsIterator.Close()
+
+	var credentials []interface{}
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		// Check the credential type by unmarshalling into a BaseCredential first
+		var baseCredential BaseCredential
+		err = json.Unmarshal(queryResponse.Value, &baseCredential)
+		if err != nil {
+			return nil, err
+		}
+
+		// Determine whether the credential is academic or professional
+		var credential interface{}
+		if baseCredential.CredentialType == "academic" {
+			// AcademicCredential
+			var academicCredential AcademicCredential
+			err = json.Unmarshal(queryResponse.Value, &academicCredential)
+			if err != nil {
+				return nil, err
+			}
+			credential = academicCredential
+		} else if baseCredential.CredentialType == "professional" {
+			// ProfessionalCredential
+			var professionalCredential ProfessionalCredential
+			err = json.Unmarshal(queryResponse.Value, &professionalCredential)
+			if err != nil {
+				return nil, err
+			}
+			credential = professionalCredential
+		} else {
+			// If it doesn't match either, we handle it as a base credential
+			credential = baseCredential
+		}
+
+		// Append the found credential to the list
+		credentials = append(credentials, credential)
+	}
+
+	return credentials, nil
+}
+
