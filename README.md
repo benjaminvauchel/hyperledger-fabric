@@ -9,11 +9,10 @@ A decentralized, tamper-resistant solution for verifying academic and profession
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
-- [Usage](#usage)
+- [Usage](#theoritical-usage)
 - [API Documentation](#api-documentation)
 - [Smart Contracts](#smart-contracts)
 - [Performance Results](#performance-results)
-- [Contributing](#contributing)
 - [License](#license)
 
 ## Overview
@@ -133,7 +132,7 @@ The system is built on Hyperledger Fabric with the following components:
 | PUT | `/credentials/{id}/skills` | Update credential skills |
 | PUT | `/credentials/{id}/name` | Update credential name |
 
-## 🔧 Smart Contracts
+## Smart Contracts
 
 ### Credential Lifecycle Operations
 
